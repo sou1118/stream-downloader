@@ -1,0 +1,74 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Check linting
+        run: cargo clippy -- -D warnings
+
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Build
+        run: cargo build
+
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Test
+        run: cargo test
+
+  machete:
+    name: Machete
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable
+      - name: Install machete
+        run: cargo install cargo-machete
+      - name: Run machete
+        run: cargo machete
