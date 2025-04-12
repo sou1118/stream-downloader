@@ -1,0 +1,2 @@
+url = "https://example.com/api/content"
+output_dir = "downloads"

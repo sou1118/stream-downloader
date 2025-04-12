@@ -7,9 +7,13 @@ use cbc::{
 use m3u8_rs::{parse_playlist_res, MediaPlaylist, Playlist};
 use reqwest::get;
 use serde_json::from_str;
-use std::fs::{create_dir_all, File};
 use std::io::Write;
 use std::process::Command;
+use std::{
+    fs::{create_dir_all, File},
+    io::Read,
+    path::Path,
+};
 use tempfile::NamedTempFile;
 use url::Url;
 
@@ -17,13 +21,53 @@ type Aes128CbcDec = Decryptor<Aes128>;
 
 type Type = serde_json::Value;
 
+/// This struct is used to deserialize the configuration file
+#[derive(serde::Deserialize)]
+struct Config {
+    url: String,
+    output_dir: Option<String>,
+}
+
+fn read_config<P: AsRef<Path>>(path: P) -> Result<Config> {
+    let mut file = File::open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let config: Config = toml::from_str(&contents)?;
+    Ok(config)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let url = ""; // Set the URL here
-    let response = get(url).await?.text().await?;
+    // This is the main function that runs the program
+    let config_path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "config.toml".to_string());
+
+    // Read the configuration file
+    let config = match read_config(&config_path) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to read config file {}: {}", config_path, e);
+            eprintln!("Using default empty URL. Please create a config.toml file with 'url = \"YOUR_URL\"'");
+            Config {
+                url: "".to_string(),
+                output_dir: None,
+            }
+        }
+    };
+
+    // Check if the URL is empty
+    if config.url.is_empty() {
+        return Err(anyhow!("URL is not specified in the config file"));
+    }
+
+    let response = get(&config.url).await?.text().await?;
     let data: Type = from_str(&response)?;
 
     let episodes = data["episodes"].as_array().context("No episodes found")?;
+
+    // Create the output directory if it doesn't exist
+    let output_dir = config.output_dir.unwrap_or_else(|| "downloads".to_string());
 
     for episode in episodes {
         let title = episode["program_title"].as_str().unwrap_or("Unknown");
@@ -32,7 +76,7 @@ async fn main() -> Result<()> {
             .context("No stream URL found")?;
 
         println!("Downloading: {}", title);
-        if let Err(e) = download_episode(title, stream_url).await {
+        if let Err(e) = download_episode(title, stream_url, &output_dir).await {
             eprintln!("Error downloading episode {}: {}", title, e);
         }
     }
@@ -40,8 +84,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn download_episode(title: &str, stream_url: &str) -> Result<()> {
-    let output_dir = "downloads";
+async fn download_episode(title: &str, stream_url: &str, output_dir: &str) -> Result<()> {
     create_dir_all(output_dir)?;
 
     let filename = format!("{}/{}.mp3", output_dir, title.replace(" ", "_"));
